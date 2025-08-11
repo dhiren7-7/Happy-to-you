@@ -1,0 +1,207 @@
+<!-- index.html - drop this into a static host (Vercel, Netlify, GitHub Pages) -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Happy Birthday — Custom</title>
+<style>
+  :root{
+    --bg:#0b1220; --main:#fff; --accent:#ff6b9a;
+  }
+  html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Helvetica,Arial;background:linear-gradient(180deg,var(--bg),#071022);color:var(--main);overflow:hidden}
+  .wrap{position:relative;height:100%;display:flex;align-items:center;justify-content:center;flex-direction:column;text-align:center;padding:24px}
+  h1{font-size:clamp(28px,8vw,72px);margin:0 0 12px;letter-spacing:1px}
+  .subtitle{margin:0 0 18px;opacity:.9}
+  .btn{background:transparent;border:1px solid rgba(255,255,255,.12);padding:8px 12px;border-radius:8px;color:var(--main);cursor:pointer}
+  .gear{position:fixed;right:16px;bottom:16px;background:rgba(0,0,0,.35);border-radius:50%;width:48px;height:48px;display:grid;place-items:center;cursor:pointer;backdrop-filter:blur(6px)}
+  .modal{position:fixed;right:16px;bottom:80px;background:#0b1220;color:var(--main);border:1px solid rgba(255,255,255,.06);padding:14px;border-radius:12px;min-width:260px;box-shadow:0 6px 30px rgba(0,0,0,.6)}
+  label{display:block;margin:8px 0 4px;font-size:13px;opacity:.9}
+  input[type="text"],select{width:100%;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.06);background:transparent;color:var(--main)}
+  .row{display:flex;gap:8px}
+  .count{font-size:48px;font-weight:700;margin:12px 0}
+  /* rain */
+  .rain {pointer-events:none;position:fixed;left:0;top:0;width:100%;height:100%;overflow:hidden;z-index:5}
+  .drop{position:absolute;white-space:nowrap;font-weight:700;animation:fall linear;opacity:.95}
+  @keyframes fall{0%{transform:translateY(-10vh) rotate(-20deg)}100%{transform:translateY(110vh) rotate(10deg)}}
+  /* hearts */
+  .hearts{position:fixed;left:0;top:0;width:100%;height:100%;pointer-events:none;z-index:6}
+  .heart{position:absolute;width:18px;height:18px;background:conic-gradient(#fff 0 360deg);transform:rotate(45deg);border-radius:2px;opacity:.9}
+  /* book */
+  .book{position:absolute;right:24px;top:24px;width:120px;height:160px;background:linear-gradient(180deg,#fff1,#0002);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:6px;z-index:4;transform-origin:right top;animation:bookfloat 6s ease-in-out infinite}
+  @keyframes bookfloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px) rotate(-2deg)}}
+  footer{position:fixed;left:12px;bottom:8px;font-size:12px;opacity:.6}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1 id="mainText">Happy Birthday! 🎉|Wishing you joy</h1>
+  <div class="subtitle" id="subText">Open your surprise — click play or wait for countdown</div>
+  <div class="count hidden" id="countdown">5</div>
+  <button id="playBtn" class="btn">Play Surprise</button>
+</div>
+
+<div class="rain" id="rain"></div>
+<div class="hearts" id="hearts"></div>
+
+<div class="book" id="book">
+  <div style="flex:1;background:linear-gradient(90deg,#fff0,#0000);border-radius:4px;"></div>
+  <div style="height:10px;background:linear-gradient(90deg,#0002,#0000);border-radius:3px"></div>
+  <div style="height:10px;background:linear-gradient(90deg,#0002,#0000);border-radius:3px"></div>
+</div>
+
+<div class="gear" id="gear" title="Customize">⚙</div>
+
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true" aria-label="Settings panel">
+  <label>Greeting text (use | for linebreak)</label>
+  <input id="txt" type="text" placeholder="Happy Birthday!|Name" />
+  <label>Countdown (seconds)</label>
+  <select id="countSel">
+    <option value="0">No countdown</option>
+    <option value="3">3</option>
+    <option value="5" selected>5</option>
+    <option value="8">8</option>
+  </select>
+  <label>Rain text (comma separated)</label>
+  <input id="rainTxt" type="text" placeholder="Happy,Love" />
+  <label>Text color</label>
+  <input id="color" type="text" placeholder="#ff6b9a or css var" />
+  <label>Music URL (mp3)</label>
+  <input id="musicUrl" type="text" placeholder="https://example.com/song.mp3" />
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button class="btn" id="apply">Apply</button>
+    <button class="btn" id="share">Get Link</button>
+  </div>
+</div>
+
+<footer>Built with ♥ — edit & share</footer>
+
+<audio id="bgAudio" loop crossorigin="anonymous"></audio>
+
+<script>
+/* --- Utilities --- */
+const el = id => document.getElementById(id);
+const gear = el('gear'), modal = el('modal'), apply = el('apply'), share = el('share');
+const txt = el('txt'), color = el('color'), musicUrl = el('musicUrl'), rainTxt = el('rainTxt'), countSel = el('countSel');
+const mainText = el('mainText'), subText = el('subText'), playBtn = el('playBtn'), audio = el('bgAudio');
+const rain = el('rain'), hearts = el('hearts'), countdown = el('countdown');
+
+/* Load from URL params */
+const params = new URLSearchParams(location.search);
+if(params.get('text')) txt.value = params.get('text');
+if(params.get('color')) color.value = params.get('color');
+if(params.get('music')) musicUrl.value = params.get('music');
+if(params.get('rain')) rainTxt.value = params.get('rain');
+if(params.get('count')) countSel.value = params.get('count');
+
+/* Apply UI -> page */
+function applySettings(){
+  const t = txt.value || "Happy Birthday!|Wishing you joy";
+  mainText.innerHTML = t.split('|').map((l,i)=> i? '<br>'+escapeHtml(l):escapeHtml(l)).join('');
+  subText.textContent = "Open your surprise — click play or wait for countdown";
+  const c = color.value.trim();
+  if(c) document.documentElement.style.setProperty('--accent', c);
+  if(musicUrl.value.trim()){ audio.src = musicUrl.value.trim(); }
+  startRain((rainTxt.value||"Happy,Birthday,Love").split(','));
+  updateURL();
+}
+function escapeHtml(s){ return s.replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])); }
+
+/* Rain generator */
+let rainInterval;
+function startRain(words){
+  rain.innerHTML='';
+  clearInterval(rainInterval);
+  for(let i=0;i<12;i++){
+    const d = document.createElement('div');
+    d.className='drop';
+    d.style.fontSize = (12+Math.floor(Math.random()*28))+'px';
+    d.style.left = Math.random()*100+'%';
+    d.textContent = words[Math.floor(Math.random()*words.length)];
+    d.style.animationDuration = (4+Math.random()*6)+'s';
+    rain.appendChild(d);
+  }
+  rainInterval = setInterval(()=> {
+    const d = document.createElement('div');
+    d.className='drop';
+    d.style.left = Math.random()*100+'%';
+    d.style.top = '-5vh';
+    d.style.fontSize = (12+Math.floor(Math.random()*28))+'px';
+    d.style.animationDuration = (4+Math.random()*6)+'s';
+    d.textContent = words[Math.floor(Math.random()*words.length)];
+    rain.appendChild(d);
+    // prune
+    if(rain.children.length>80) rain.removeChild(rain.children[0]);
+  }, 700);
+}
+
+/* hearts effect */
+function spawnHeart(x,y){
+  const h = document.createElement('div');
+  h.className='heart';
+  h.style.left = (x-10)+'px'; h.style.top = (y-10)+'px';
+  h.style.background = 'radial-gradient(circle at 30% 30%, var(--accent), #fff0)';
+  hearts.appendChild(h);
+  const dur = 2500 + Math.random()*2000;
+  h.animate([{transform:'translateY(0) scale(0.8)',opacity:1},{transform:'translateY(-180px) scale(1.2)',opacity:0}],{duration:dur,easing:'ease-out'});
+  setTimeout(()=>h.remove(),dur+50);
+}
+
+/* Play / countdown */
+let countdownTimer;
+playBtn.addEventListener('click', startShow);
+function startShow(){
+  const seconds = Number(countSel.value || 0);
+  if(seconds>0){
+    countdown.classList.remove('hidden'); countdown.textContent = seconds;
+    let s = seconds;
+    countdownTimer = setInterval(()=>{
+      s--; if(s<=0){ clearInterval(countdownTimer); countdown.classList.add('hidden'); openSurprise(); }
+      else countdown.textContent = s;
+    },1000);
+  } else openSurprise();
+}
+function openSurprise(){
+  audio.play().catch(()=>{ /* maybe blocked until user gesture */});
+  // spawn a few hearts
+  for(let i=0;i<12;i++) setTimeout(()=> spawnHeart(window.innerWidth*(Math.random()*0.8+0.1), window.innerHeight*(Math.random()*0.6+0.2)), i*200);
+}
+
+/* UI interactions */
+gear.onclick = ()=> modal.classList.toggle('hidden');
+apply.onclick = ()=> { applySettings(); modal.classList.add('hidden'); };
+share.onclick = ()=> {
+  updateURL();
+  const url = location.href;
+  navigator.clipboard?.writeText(url).then(()=> alert('Link copied!'), ()=>prompt('Copy this link',url));
+};
+
+/* Save state to url */
+function updateURL(){
+  const q = new URLSearchParams();
+  if(txt.value) q.set('text', txt.value);
+  if(color.value) q.set('color', color.value);
+  if(musicUrl.value) q.set('music', musicUrl.value);
+  if(rainTxt.value) q.set('rain', rainTxt.value);
+  if(countSel.value) q.set('count', countSel.value);
+  const href = location.origin + location.pathname + '?' + q.toString();
+  history.replaceState({},'',href);
+}
+
+/* init defaults */
+document.addEventListener('DOMContentLoaded',()=>{
+  if(!txt.value) txt.value = "Happy Birthday!|Have a wonderful day";
+  if(!rainTxt.value) rainTxt.value = "Happy,Birthday,Love";
+  if(!musicUrl.value) musicUrl.value = "";
+  applySettings();
+});
+
+/* small UX: click anywhere to spawn hearts */
+document.addEventListener('click', (e)=>{
+  if(e.target.closest('.modal') || e.target.closest('.gear') || e.target.closest('.btn')) return;
+  spawnHeart(e.clientX,e.clientY);
+});
+</script>
+</body>
+</html>
